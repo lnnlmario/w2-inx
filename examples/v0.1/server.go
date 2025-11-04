@@ -1,0 +1,10 @@
+package main
+
+import "github.com/lnnlmario/w2-inx/znet"
+
+func main() {
+	//创建一个server句柄，使用w2inx的api
+	s := znet.NewServer("[w2-inx v0.1]")
+	//启动server
+	s.Serve()
+}
