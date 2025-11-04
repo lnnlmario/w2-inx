@@ -1,10 +1,10 @@
-package znet
+package w2net
 
 import (
 	"fmt"
 	"net"
 
-	"github.com/lnnlmario/w2-inx/ziface"
+	"github.com/lnnlmario/w2-inx/w2iface"
 )
 
 // iServer的接口实现，定义一个Server的服务器模块
@@ -77,7 +77,7 @@ func (s *Server) Serve() {
 	select {}
 }
 
-func NewServer(name string) ziface.IServer {
+func NewServer(name string) w2iface.IServer {
 	s := &Server{
 		Name:      name,
 		IPVersion: "tcp4",

@@ -1,4 +1,4 @@
-package ziface
+package w2iface
 
 type IServer interface {
 	// 启动服务器
