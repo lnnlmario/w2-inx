@@ -47,12 +47,14 @@ func (c *Connection) StartReader() {
 		cnt, err := c.Conn.Read(buf)
 		if err != nil {
 			fmt.Println("Read error:", err)
+			c.ExitChan <- true
 			continue
 		}
 
 		// 调用当前链接绑定的业务处理方法
 		if err := c.handleAPI(c.Conn, buf, cnt); err != nil {
 			fmt.Println("Handle error:", err)
+			c.ExitChan <- true
 			break
 		}
 	}
@@ -64,6 +66,14 @@ func (c *Connection) Start() {
 	// 启动从当前链接读数据的业务
 	go c.StartReader()
 	// TODO: 启动从当前链接写数据的业务
+
+	for {
+		select {
+		case <-c.ExitChan:
+			//得到退出消息，不再阻塞
+			return
+		}
+	}
 }
 
 // 停止链接 结束当前链接的工作
@@ -81,6 +91,8 @@ func (c *Connection) Stop() {
 		fmt.Println("Connection Stop() Close() error:", err)
 		return
 	}
+	// 关闭socket链接
+	c.Conn.Close()
 	// 通知当前链接已经退出
 	c.ExitChan <- true
 	// 关闭当前链接的ExitChan
