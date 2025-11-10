@@ -7,86 +7,97 @@ import (
 	"github.com/lnnlmario/w2-inx/w2iface"
 )
 
-// iServer的接口实现，定义一个Server的服务器模块
 type Server struct {
-	//服务器的名称
+	// 服务器的而名称
 	Name string
-	//服务器绑定的IP版本
+	// 服务器绑定的IP版本
 	IPVersion string
-	//服务器监听的IP
+	// 服务器监听的IP
 	IP string
-	//服务器监听的端口
+	// 服务器监听的端口
 	Port int
+	// 当前Server由用户绑定的回调router,也就是Server注册的链接对应的处理业务
+	Router w2iface.IRouter
 }
 
-// 定义客户端链接绑定的业务处理函数，目前写死
-func CallBackToClient(conn *net.TCPConn, data []byte, cnt int) error {
-	fmt.Println("[Conn Handle] callback to client...")
-	if _, err := conn.Write(data[:cnt]); err != nil {
-		fmt.Println("write back buf err:", err)
-		return err
+// 写死当前客户端绑定的handle api
+func CallbackToClient(conn *net.TCPConn, data []byte, cnt int) error {
+	fmt.Printf("[Connection Handle] CallbackToClient: Received %d bytes from %s: %s\n", cnt, conn.RemoteAddr().String(), string(data[:cnt]))
+	// Echo the data back to the client
+	_, err := conn.Write(data[:cnt])
+	if err != nil {
+		fmt.Println("Write error:", err)
 	}
-
-	return nil
+	return err
 }
 
 func (s *Server) Start() {
-	fmt.Printf("[Start] Server Listenner at IP :%s, Port %d, is starting\n", s.IP, s.Port)
+	fmt.Printf("[Start] Server is listening IP:%s, Port:%d, Version:%s\n", s.IP, s.Port, s.IPVersion)
 
 	go func() {
-		// 获取一个TCPde addr
+		// 1. 获取一个TCP的Addr
 		addr, err := net.ResolveTCPAddr(s.IPVersion, fmt.Sprintf("%s:%d", s.IP, s.Port))
 		if err != nil {
-			fmt.Println("resolve tcp addr err:", err)
+			fmt.Println("ResolveTCPAddr error:", err)
 			return
 		}
 
-		// 监听服务器的地址
-		listenner, err := net.ListenTCP(s.IPVersion, addr)
+		// 2. 监听服务器的地址
+		listener, err := net.ListenTCP(s.IPVersion, addr)
 		if err != nil {
-			fmt.Println("listen", s.IPVersion, " err:", err)
+			fmt.Println("ListenTCP error:", err)
 			return
 		}
+		fmt.Println("start w2-inx server", s.Name, "success, now listening...")
 
-		var cid uint32
+		var cId uint32 = 0
 
-		// 阻塞的等待客户端链接，处理客户端链接业务（读写）
+		// 3. 阻塞等待客户端的链接，处理客户端链接业务(读写)
 		for {
-			// 如果有客户端链接过来，阻塞会返回
-			conn, err := listenner.AcceptTCP()
+			conn, err := listener.AcceptTCP()
 			if err != nil {
-				fmt.Println("Accept err:", err)
+				fmt.Println("Accept error:", err)
 				continue
 			}
 
-			// 将处理新连接的业务方法和conn进行绑定，得到我们的链接模块对象
-			dealConn := NewConnection(conn, cid, CallBackToClient)
-			cid = cid + 1
+			// 将处理新链接的业务方法和conn进行绑定，得到我们的链接模块
+			dealConn := NewConnection(conn, cId, s.Router)
+			cId++
 
-			// 启动当前的链接业务处理
 			go dealConn.Start()
 		}
 	}()
 }
 
-func (s *Server) Stop() {}
+func (s *Server) Stop() {
+	fmt.Println("[STOP] w2-inx server , name ", s.Name)
+}
 
 func (s *Server) Serve() {
-	// 启动server的服务功能
+	// 启动服务器
 	s.Start()
 
-	// TODO: 做一些启动服务器之后的额外业务
-
-	// 阻塞状态
+	// 阻塞主线程
 	select {}
 }
 
+func (s *Server) AddRouter(router w2iface.IRouter) {
+	s.Router = router
+	fmt.Println("Add Router succ! ")
+}
+
+/**
+ * NewServer 创建一个服务器实例
+ * @param name 服务器名称
+ * @return IServer 服务器实例
+ */
 func NewServer(name string) w2iface.IServer {
 	s := &Server{
 		Name:      name,
 		IPVersion: "tcp4",
 		IP:        "0.0.0.0",
 		Port:      8999,
+		Router:    nil,
 	}
 
 	return s
