@@ -16,6 +16,8 @@ type Server struct {
 	IP string
 	// 服务器监听的端口
 	Port int
+	// 当前Server由用户绑定的回调router,也就是Server注册的链接对应的处理业务
+	Router w2iface.IRouter
 }
 
 // 写死当前客户端绑定的handle api
@@ -59,7 +61,7 @@ func (s *Server) Start() {
 			}
 
 			// 将处理新链接的业务方法和conn进行绑定，得到我们的链接模块
-			dealConn := NewConnection(conn, cId, CallbackToClient)
+			dealConn := NewConnection(conn, cId, s.Router)
 			cId++
 
 			go dealConn.Start()
@@ -67,7 +69,9 @@ func (s *Server) Start() {
 	}()
 }
 
-func (s *Server) Stop() {}
+func (s *Server) Stop() {
+	fmt.Println("[STOP] w2-inx server , name ", s.Name)
+}
 
 func (s *Server) Serve() {
 	// 启动服务器
@@ -75,6 +79,11 @@ func (s *Server) Serve() {
 
 	// 阻塞主线程
 	select {}
+}
+
+func (s *Server) AddRouter(router w2iface.IRouter) {
+	s.Router = router
+	fmt.Println("Add Router succ! ")
 }
 
 /**
@@ -88,6 +97,7 @@ func NewServer(name string) w2iface.IServer {
 		IPVersion: "tcp4",
 		IP:        "0.0.0.0",
 		Port:      8999,
+		Router:    nil,
 	}
 
 	return s

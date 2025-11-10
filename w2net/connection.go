@@ -18,21 +18,21 @@ type Connection struct {
 	// 当前的链接状态
 	isClosed bool
 
-	// 当前链接所绑定的处理业务方法
-	handleAPI w2iface.HandleFunc
+	//该连接的处理方法router
+	Router w2iface.IRouter
 
 	// 告知当前链接已经退出/停止 channel
 	ExitChan chan bool
 }
 
 // 初始化链接模块的方法
-func NewConnection(conn *net.TCPConn, connId uint32, callback w2iface.HandleFunc) *Connection {
+func NewConnection(conn *net.TCPConn, connId uint32, router w2iface.IRouter) *Connection {
 	return &Connection{
-		Conn:      conn,
-		ConnId:    connId,
-		isClosed:  false,
-		handleAPI: callback,
-		ExitChan:  make(chan bool, 1),
+		Conn:     conn,
+		ConnId:   connId,
+		isClosed: false,
+		Router:   router,
+		ExitChan: make(chan bool, 1),
 	}
 }
 
@@ -44,19 +44,22 @@ func (c *Connection) StartReader() {
 	for {
 		// 读取数据
 		buf := make([]byte, 512)
-		cnt, err := c.Conn.Read(buf)
+		_, err := c.Conn.Read(buf)
 		if err != nil {
 			fmt.Println("Read error:", err)
 			c.ExitChan <- true
 			continue
 		}
 
-		// 调用当前链接绑定的业务处理方法
-		if err := c.handleAPI(c.Conn, buf, cnt); err != nil {
-			fmt.Println("Handle error:", err)
-			c.ExitChan <- true
-			break
-		}
+		// 得到当前客户端请求的Request数据
+		request := Request{conn: c, data: buf}
+		//从路由Routers 中找到注册绑定Conn的对应Handle
+		go func(request w2iface.IRequest) {
+			//执行注册的路由方法
+			c.Router.PreHandle(request)
+			c.Router.Handle(request)
+			c.Router.PostHandle(request)
+		}(&request)
 	}
 }
 
