@@ -2,6 +2,7 @@ package w2net
 
 import (
 	"fmt"
+	"github.com/lnnlmario/w2-inx/w2utils"
 	"net"
 
 	"github.com/lnnlmario/w2-inx/w2iface"
@@ -33,6 +34,11 @@ func CallbackToClient(conn *net.TCPConn, data []byte, cnt int) error {
 
 func (s *Server) Start() {
 	fmt.Printf("[Start] Server is listening IP:%s, Port:%d, Version:%s\n", s.IP, s.Port, s.IPVersion)
+
+	fmt.Printf("[Zinx] Version: %s, MaxConn: %d,  MaxPacketSize: %d\n",
+		w2utils.GlobalObject.Version,
+		w2utils.GlobalObject.MaxConn,
+		w2utils.GlobalObject.MaxPacketSize)
 
 	go func() {
 		// 1. 获取一个TCP的Addr
@@ -93,10 +99,10 @@ func (s *Server) AddRouter(router w2iface.IRouter) {
  */
 func NewServer(name string) w2iface.IServer {
 	s := &Server{
-		Name:      name,
+		Name:      w2utils.GlobalObject.Name,
 		IPVersion: "tcp4",
-		IP:        "0.0.0.0",
-		Port:      8999,
+		IP:        w2utils.GlobalObject.Host,
+		Port:      w2utils.GlobalObject.TcpPort,
 		Router:    nil,
 	}
 
