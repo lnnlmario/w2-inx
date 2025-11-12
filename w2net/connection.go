@@ -1,6 +1,7 @@
 package w2net
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -141,6 +142,22 @@ func (c *Connection) RemoteAddr() net.Addr {
 }
 
 // 发送数据 将数据发送给远程的客户端
-func (c *Connection) Send(data []byte) error {
-	return nil // TODO: 实现发送数据的逻辑
+func (c *Connection) Send(msgId uint32, data []byte) error {
+	if c.isClosed {
+		return errors.New("connection is closed")
+	}
+	// 将data封包发送
+	dp := NewDataPack()
+	msg, err := dp.Pack(NewMsgPackage(msgId, data))
+	if err != nil {
+		fmt.Println("pack msg error:", err, "msgId=", msgId)
+		return err
+	}
+	// 写回客户端
+	if _, err := c.Conn.Write(msg); err != nil {
+		fmt.Println("send msg error:", err, "msgId=", msgId)
+		c.ExitChan <- true
+		return err
+	}
+	return nil
 }
