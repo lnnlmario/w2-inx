@@ -2,6 +2,7 @@ package w2utils
 
 import (
 	"encoding/json"
+	"fmt"
 	"github.com/lnnlmario/w2-inx/w2iface"
 	"io/ioutil"
 )
@@ -23,13 +24,14 @@ var GlobalObject *GlobalObj
 func (g *GlobalObj) Reload() {
 	data, err := ioutil.ReadFile("conf/w2inx.json")
 	if err != nil {
-		panic(err)
-	}
-	//将json数据解析到struct中
-	//fmt.Printf("json :%s\n", data)
-	err = json.Unmarshal(data, &GlobalObject)
-	if err != nil {
-		panic(err)
+		fmt.Println("can not read conf/w2inx.json")
+	} else {
+		//将json数据解析到struct中
+		//fmt.Printf("json :%s\n", data)
+		err = json.Unmarshal(data, &GlobalObject)
+		if err != nil {
+			panic(err)
+		}
 	}
 }
 
