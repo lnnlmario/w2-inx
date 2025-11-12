@@ -18,25 +18,14 @@ type Server struct {
 	IP string
 	// 服务器监听的端口
 	Port int
-	// 当前Server由用户绑定的回调router,也就是Server注册的链接对应的处理业务
-	Router w2iface.IRouter
-}
-
-// 写死当前客户端绑定的handle api
-func CallbackToClient(conn *net.TCPConn, data []byte, cnt int) error {
-	fmt.Printf("[Connection Handle] CallbackToClient: Received %d bytes from %s: %s\n", cnt, conn.RemoteAddr().String(), string(data[:cnt]))
-	// Echo the data back to the client
-	_, err := conn.Write(data[:cnt])
-	if err != nil {
-		fmt.Println("Write error:", err)
-	}
-	return err
+	// 消息管理模块，绑定msgId和对应的处理的方法
+	msgHandler w2iface.IMsgHandle
 }
 
 func (s *Server) Start() {
 	fmt.Printf("[Start] Server is listening IP:%s, Port:%d, Version:%s\n", s.IP, s.Port, s.IPVersion)
 
-	fmt.Printf("[Zinx] Version: %s, MaxConn: %d,  MaxPacketSize: %d\n",
+	fmt.Printf("[W2inx] Version: %s, MaxConn: %d,  MaxPacketSize: %d\n",
 		w2utils.GlobalObject.Version,
 		w2utils.GlobalObject.MaxConn,
 		w2utils.GlobalObject.MaxPacketSize)
@@ -68,7 +57,7 @@ func (s *Server) Start() {
 			}
 
 			// 将处理新链接的业务方法和conn进行绑定，得到我们的链接模块
-			dealConn := NewConnection(conn, cId, s.Router)
+			dealConn := NewConnection(conn, cId, s.msgHandler)
 			cId++
 
 			go dealConn.Start()
@@ -88,9 +77,8 @@ func (s *Server) Serve() {
 	select {}
 }
 
-func (s *Server) AddRouter(router w2iface.IRouter) {
-	s.Router = router
-	fmt.Println("Add Router succ! ")
+func (s *Server) AddRouter(msgId uint32, router w2iface.IRouter) {
+	s.msgHandler.AddRouter(msgId, router)
 }
 
 /**
@@ -105,11 +93,11 @@ func NewServer(args ...string) w2iface.IServer {
 	}
 
 	s := &Server{
-		Name:      serverName,
-		IPVersion: "tcp4",
-		IP:        w2utils.GlobalObject.Host,
-		Port:      w2utils.GlobalObject.TcpPort,
-		Router:    nil,
+		Name:       serverName,
+		IPVersion:  "tcp4",
+		IP:         w2utils.GlobalObject.Host,
+		Port:       w2utils.GlobalObject.TcpPort,
+		msgHandler: NewMsgHandle(),
 	}
 
 	return s

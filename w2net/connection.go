@@ -20,21 +20,21 @@ type Connection struct {
 	// 当前的链接状态
 	isClosed bool
 
-	//该连接的处理方法router
-	Router w2iface.IRouter
+	// 消息管理MsgId和对应处理方法的消息管理模块
+	MsgHandler w2iface.IMsgHandle
 
 	// 告知当前链接已经退出/停止 channel
 	ExitChan chan bool
 }
 
 // 初始化链接模块的方法
-func NewConnection(conn *net.TCPConn, connId uint32, router w2iface.IRouter) *Connection {
+func NewConnection(conn *net.TCPConn, connId uint32, msgHandler w2iface.IMsgHandle) *Connection {
 	return &Connection{
-		Conn:     conn,
-		ConnId:   connId,
-		isClosed: false,
-		Router:   router,
-		ExitChan: make(chan bool, 1),
+		Conn:       conn,
+		ConnId:     connId,
+		isClosed:   false,
+		MsgHandler: msgHandler,
+		ExitChan:   make(chan bool, 1),
 	}
 }
 
@@ -77,13 +77,8 @@ func (c *Connection) StartReader() {
 
 		// 得到当前客户端请求的Request数据
 		request := Request{conn: c, msg: msg}
-		//从路由Routers 中找到注册绑定Conn的对应Handle
-		go func(request w2iface.IRequest) {
-			//执行注册的路由方法
-			c.Router.PreHandle(request)
-			c.Router.Handle(request)
-			c.Router.PostHandle(request)
-		}(&request)
+		// 从绑定好的消息和对应的处理方法中执行对应的handle方法
+		go c.MsgHandler.DoMsgHandler(&request)
 	}
 }
 
