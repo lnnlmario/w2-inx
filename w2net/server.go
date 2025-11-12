@@ -100,7 +100,7 @@ func (s *Server) AddRouter(router w2iface.IRouter) {
  */
 func NewServer(args ...string) w2iface.IServer {
 	serverName := w2utils.GlobalObject.Name
-	if len(name) != 0 {
+	if len(args) != 0 {
 		serverName = args[0]
 	}
 
