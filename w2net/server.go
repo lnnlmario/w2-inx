@@ -2,8 +2,9 @@ package w2net
 
 import (
 	"fmt"
-	"github.com/lnnlmario/w2-inx/w2utils"
 	"net"
+
+	"github.com/lnnlmario/w2-inx/w2utils"
 
 	"github.com/lnnlmario/w2-inx/w2iface"
 )
@@ -97,9 +98,14 @@ func (s *Server) AddRouter(router w2iface.IRouter) {
  * @param name 服务器名称
  * @return IServer 服务器实例
  */
-func NewServer(name string) w2iface.IServer {
+func NewServer(args ...string) w2iface.IServer {
+	serverName := w2utils.GlobalObject.Name
+	if len(name) != 0 {
+		serverName = args[0]
+	}
+
 	s := &Server{
-		Name:      w2utils.GlobalObject.Name,
+		Name:      serverName,
 		IPVersion: "tcp4",
 		IP:        w2utils.GlobalObject.Host,
 		Port:      w2utils.GlobalObject.TcpPort,
