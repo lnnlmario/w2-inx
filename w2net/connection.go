@@ -2,6 +2,7 @@ package w2net
 
 import (
 	"fmt"
+	"io"
 	"net"
 
 	"github.com/lnnlmario/w2-inx/w2iface"
@@ -42,17 +43,39 @@ func (c *Connection) StartReader() {
 	defer c.Stop()
 	// 循环读取数据
 	for {
-		// 读取数据
-		buf := make([]byte, 512)
-		_, err := c.Conn.Read(buf)
-		if err != nil {
-			fmt.Println("Read error:", err)
+		// 创建拆包解包对象
+		dp := NewDataPack()
+
+		// 读取客户端你的msg head
+		headData := make([]byte, dp.GetHeadLen())
+		if _, err := io.ReadFull(c.GetTCPConnection(), headData); err != nil {
+			fmt.Println("read msg head data err:", err)
 			c.ExitChan <- true
 			continue
 		}
 
+		// 拆包得到 msgid 和 datalen
+		msg, err := dp.Unpack(headData)
+		if err != nil {
+			fmt.Println("unpack msg err:", err)
+			c.ExitChan <- true
+			continue
+		}
+
+		// 根据 datalen 读取 data
+		var data []byte
+		if msg.GetDataLen() > 0 {
+			data = make([]byte, msg.GetDataLen())
+			if _, err := io.ReadFull(c.GetTCPConnection(), data); err != nil {
+				fmt.Println("read msg data err:", err)
+				c.ExitChan <- true
+				continue
+			}
+		}
+		msg.SetData(data)
+
 		// 得到当前客户端请求的Request数据
-		request := Request{conn: c, data: buf}
+		request := Request{conn: c, msg: msg}
 		//从路由Routers 中找到注册绑定Conn的对应Handle
 		go func(request w2iface.IRequest) {
 			//执行注册的路由方法
