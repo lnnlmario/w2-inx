@@ -20,6 +20,8 @@ type Server struct {
 	Port int
 	// 消息管理模块，绑定msgId和对应的处理的方法
 	msgHandler w2iface.IMsgHandle
+	// 当前server的链接管理器
+	ConnMgr w2iface.IConnManager
 }
 
 func (s *Server) Start() {
@@ -53,14 +55,21 @@ func (s *Server) Start() {
 
 		// 3. 阻塞等待客户端的链接，处理客户端链接业务(读写)
 		for {
+			// 阻塞等待客户端建立连接请求
 			conn, err := listener.AcceptTCP()
 			if err != nil {
 				fmt.Println("Accept error:", err)
 				continue
 			}
 
+			// 设置服务器最大连接控制，如果超过最大连接数，则关闭新连接
+			if s.ConnMgr.Len() >= w2utils.GlobalObject.MaxConn {
+				conn.Close()
+				continue
+			}
+
 			// 将处理新链接的业务方法和conn进行绑定，得到我们的链接模块
-			dealConn := NewConnection(conn, cId, s.msgHandler)
+			dealConn := NewConnection(s, conn, cId, s.msgHandler)
 			cId++
 
 			go dealConn.Start()
@@ -70,6 +79,9 @@ func (s *Server) Start() {
 
 func (s *Server) Stop() {
 	fmt.Println("[STOP] w2-inx server , name ", s.Name)
+
+	// 将全部链接都清空
+	s.ConnMgr.ClearConn()
 }
 
 func (s *Server) Serve() {
@@ -82,6 +94,10 @@ func (s *Server) Serve() {
 
 func (s *Server) AddRouter(msgId uint32, router w2iface.IRouter) {
 	s.msgHandler.AddRouter(msgId, router)
+}
+
+func (s *Server) GetConnMgr() w2iface.IConnManager {
+	return s.ConnMgr
 }
 
 /**
@@ -101,6 +117,7 @@ func NewServer(args ...string) w2iface.IServer {
 		IP:         w2utils.GlobalObject.Host,
 		Port:       w2utils.GlobalObject.TcpPort,
 		msgHandler: NewMsgHandle(),
+		ConnMgr:    NewConnManager(),
 	}
 
 	return s

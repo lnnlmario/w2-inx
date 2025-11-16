@@ -12,6 +12,9 @@ import (
 
 // 链接模块
 type Connection struct {
+	// 当前connection所属server
+	TcpServer w2iface.IServer
+
 	// 当前链接的socket TCP套接字
 	Conn *net.TCPConn
 
@@ -32,8 +35,9 @@ type Connection struct {
 }
 
 // 初始化链接模块的方法
-func NewConnection(conn *net.TCPConn, connId uint32, msgHandler w2iface.IMsgHandle) *Connection {
-	return &Connection{
+func NewConnection(server w2iface.IServer, conn *net.TCPConn, connId uint32, msgHandler w2iface.IMsgHandle) *Connection {
+	c := &Connection{
+		TcpServer:  server,
 		Conn:       conn,
 		ConnId:     connId,
 		isClosed:   false,
@@ -41,6 +45,11 @@ func NewConnection(conn *net.TCPConn, connId uint32, msgHandler w2iface.IMsgHand
 		ExitChan:   make(chan bool, 1),
 		msgChan:    make(chan []byte),
 	}
+
+	// 将新创建的connection添加到链接管理中
+	c.TcpServer.GetConnMgr().Add(c)
+
+	return c
 }
 
 func (c *Connection) StartReader() {
@@ -148,6 +157,8 @@ func (c *Connection) Stop() {
 	c.Conn.Close()
 	// 通知当前链接已经退出
 	c.ExitChan <- true
+	// 将连接从连接管理器中删除
+	c.TcpServer.GetConnMgr().Remove(c)
 	// 关闭当前链接的ExitChan
 	close(c.msgChan)
 	close(c.ExitChan)
