@@ -3,6 +3,7 @@ package w2net
 import (
 	"errors"
 	"fmt"
+	"github.com/lnnlmario/w2-inx/w2utils"
 	"io"
 	"net"
 
@@ -25,6 +26,9 @@ type Connection struct {
 
 	// 告知当前链接已经退出/停止 channel
 	ExitChan chan bool
+
+	// 无缓冲管道 用于读写两个goroutine间消息
+	msgChan chan []byte
 }
 
 // 初始化链接模块的方法
@@ -35,6 +39,7 @@ func NewConnection(conn *net.TCPConn, connId uint32, msgHandler w2iface.IMsgHand
 		isClosed:   false,
 		MsgHandler: msgHandler,
 		ExitChan:   make(chan bool, 1),
+		msgChan:    make(chan []byte),
 	}
 }
 
@@ -77,8 +82,33 @@ func (c *Connection) StartReader() {
 
 		// 得到当前客户端请求的Request数据
 		request := Request{conn: c, msg: msg}
-		// 从绑定好的消息和对应的处理方法中执行对应的handle方法
-		go c.MsgHandler.DoMsgHandler(&request)
+
+		// 判断用户配置的workerPoolSize个数，若<=0，走之前启动一个客户端处理请求消息
+		if w2utils.GlobalObject.WorkerPoolSize > 0 {
+			// 已经启动工作池机制，将消息交给worker处理
+			c.MsgHandler.SendMsgToTaskQueue(&request)
+		} else {
+			// 从绑定好的消息和对应的处理方法中执行对应的handle方法
+			go c.MsgHandler.DoMsgHandler(&request)
+		}
+	}
+}
+
+func (c *Connection) StartWriter() {
+	fmt.Println("Write goroutine is running..., connId=", c.ConnId)
+	defer fmt.Println("Write connId=", c.ConnId, "remote addr=", c.RemoteAddr(), ", conn writer exit!")
+
+	for {
+		select {
+		case data := <-c.msgChan:
+			// 有数据要写给客户端
+			if _, err := c.Conn.Write(data); err != nil {
+				fmt.Println("Send data err:", err, ", connId=", c.ConnId, ", conn writer exit!")
+				return
+			}
+		case <-c.ExitChan:
+			return
+		}
 	}
 }
 
@@ -87,7 +117,8 @@ func (c *Connection) Start() {
 	fmt.Println("Connection Start()..., connId=", c.ConnId)
 	// 启动从当前链接读数据的业务
 	go c.StartReader()
-	// TODO: 启动从当前链接写数据的业务
+	// 启动从当前链接写数据的业务
+	go c.StartWriter()
 
 	for {
 		select {
@@ -118,6 +149,7 @@ func (c *Connection) Stop() {
 	// 通知当前链接已经退出
 	c.ExitChan <- true
 	// 关闭当前链接的ExitChan
+	close(c.msgChan)
 	close(c.ExitChan)
 }
 
@@ -148,11 +180,9 @@ func (c *Connection) Send(msgId uint32, data []byte) error {
 		fmt.Println("pack msg error:", err, "msgId=", msgId)
 		return err
 	}
+
 	// 写回客户端
-	if _, err := c.Conn.Write(msg); err != nil {
-		fmt.Println("send msg error:", err, "msgId=", msgId)
-		c.ExitChan <- true
-		return err
-	}
+	c.msgChan <- msg
+
 	return nil
 }
