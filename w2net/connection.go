@@ -143,6 +143,9 @@ func (c *Connection) Start() {
 	// 启动从当前链接写数据的业务
 	go c.StartWriter()
 
+	// 按照用户传递进来的创建连接时需要执行的处理业务，执行Hook方法
+	c.TcpServer.CallOnConnStart(c)
+
 	for {
 		select {
 		case <-c.ExitChan:
@@ -162,6 +165,10 @@ func (c *Connection) Stop() {
 	}
 	// 将当前链接状态设置为已关闭
 	c.isClosed = true
+
+	// 执行用户注册的关闭连接回调方法
+	c.TcpServer.CallOnConnStop(c)
+	
 	// 关闭socket链接
 	if err := c.Conn.Close(); err != nil {
 		fmt.Println("Connection Stop() Close() error:", err)

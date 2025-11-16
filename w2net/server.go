@@ -22,6 +22,11 @@ type Server struct {
 	msgHandler w2iface.IMsgHandle
 	// 当前server的链接管理器
 	ConnMgr w2iface.IConnManager
+
+	// 该server创建连接时的Hook函数
+	OnConnStart func(conn w2iface.IConnection)
+	// 该server连接断开时的Hook函数
+	onConnStop func(conn w2iface.IConnection)
 }
 
 func (s *Server) Start() {
@@ -98,6 +103,26 @@ func (s *Server) AddRouter(msgId uint32, router w2iface.IRouter) {
 
 func (s *Server) GetConnMgr() w2iface.IConnManager {
 	return s.ConnMgr
+}
+
+func (s *Server) SetOnConnStart(f func(connection w2iface.IConnection)) {
+	s.OnConnStart = f
+}
+
+func (s *Server) SetOnConnStop(f func(conn w2iface.IConnection)) {
+	s.onConnStop = f
+}
+
+func (s *Server) CallOnConnStart(conn w2iface.IConnection) {
+	if s.OnConnStart != nil {
+		s.OnConnStart(conn)
+	}
+}
+
+func (s *Server) CallOnConnStop(conn w2iface.IConnection) {
+	if s.onConnStop != nil {
+		s.onConnStop(conn)
+	}
 }
 
 /**
