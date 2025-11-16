@@ -3,9 +3,10 @@ package w2net
 import (
 	"errors"
 	"fmt"
-	"github.com/lnnlmario/w2-inx/w2utils"
 	"io"
 	"net"
+
+	"github.com/lnnlmario/w2-inx/w2utils"
 
 	"github.com/lnnlmario/w2-inx/w2iface"
 )
@@ -32,18 +33,22 @@ type Connection struct {
 
 	// 无缓冲管道 用于读写两个goroutine间消息
 	msgChan chan []byte
+
+	// 有缓冲管道 用于读写两个goroutine间消息
+	msgBuffChan chan []byte
 }
 
 // 初始化链接模块的方法
 func NewConnection(server w2iface.IServer, conn *net.TCPConn, connId uint32, msgHandler w2iface.IMsgHandle) *Connection {
 	c := &Connection{
-		TcpServer:  server,
-		Conn:       conn,
-		ConnId:     connId,
-		isClosed:   false,
-		MsgHandler: msgHandler,
-		ExitChan:   make(chan bool, 1),
-		msgChan:    make(chan []byte),
+		TcpServer:   server,
+		Conn:        conn,
+		ConnId:      connId,
+		isClosed:    false,
+		MsgHandler:  msgHandler,
+		ExitChan:    make(chan bool, 1),
+		msgChan:     make(chan []byte),
+		msgBuffChan: make(chan []byte, w2utils.GlobalObject.MaxMsgChanLen),
 	}
 
 	// 将新创建的connection添加到链接管理中
@@ -115,6 +120,15 @@ func (c *Connection) StartWriter() {
 				fmt.Println("Send data err:", err, ", connId=", c.ConnId, ", conn writer exit!")
 				return
 			}
+			// 有缓冲channel要写的数据处理
+		case data, ok := <-c.msgBuffChan:
+			if ok {
+				// 有数据要写会客户端
+				if _, err := c.Conn.Write(data); err != nil {
+					fmt.Println("Send buff data err:", err, ", connId=", c.ConnId, ", conn writer exit!")
+					return
+				}
+			}
 		case <-c.ExitChan:
 			return
 		}
@@ -160,8 +174,9 @@ func (c *Connection) Stop() {
 	// 将连接从连接管理器中删除
 	c.TcpServer.GetConnMgr().Remove(c)
 	// 关闭当前链接的ExitChan
-	close(c.msgChan)
 	close(c.ExitChan)
+	close(c.msgChan)
+	close(c.msgBuffChan)
 }
 
 // 获取当前链接绑定的socket conn
@@ -194,6 +209,25 @@ func (c *Connection) Send(msgId uint32, data []byte) error {
 
 	// 写回客户端
 	c.msgChan <- msg
+
+	return nil
+}
+
+func (c *Connection) SendBuffMsg(msgId uint32, data []byte) error {
+	if c.isClosed {
+		return errors.New("connection is closed when send buff msg")
+	}
+
+	// 将data封包，并且发送
+	dp := NewDataPack()
+	msg, err := dp.Pack(NewMsgPackage(msgId, data))
+	if err != nil {
+		fmt.Println("pack msg error:", err, "msgId=", msgId)
+		return err
+	}
+
+	// 写回客户端
+	c.msgBuffChan <- msg
 
 	return nil
 }

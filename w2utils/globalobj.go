@@ -3,8 +3,9 @@ package w2utils
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/lnnlmario/w2-inx/w2iface"
 	"io/ioutil"
+
+	"github.com/lnnlmario/w2-inx/w2iface"
 )
 
 // 存储矿建全局参数
@@ -21,6 +22,7 @@ type GlobalObj struct {
 	MaxConn          int    // 允许的最大链接数
 	WorkerPoolSize   uint32 // 业务工作Worker池的数量
 	MaxWorkerTaskLen uint32 // 业务工作Worker对应负责的任务队列最大任务存储数量
+	MaxMsgChanLen    uint32
 
 	ConfFilePath string
 }
@@ -52,6 +54,7 @@ func init() {
 		MaxConn:          12000,
 		WorkerPoolSize:   10,
 		MaxWorkerTaskLen: 1024,
+		MaxMsgChanLen:    1024,
 		ConfFilePath:     "conf/w2inx.json",
 	}
 
