@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"sync"
 
 	"github.com/lnnlmario/w2-inx/w2utils"
 
@@ -36,6 +37,11 @@ type Connection struct {
 
 	// 有缓冲管道 用于读写两个goroutine间消息
 	msgBuffChan chan []byte
+
+	// 连接属性
+	property map[string]interface{}
+	// 保护连接属性修改的锁
+	propertyLock sync.RWMutex
 }
 
 // 初始化链接模块的方法
@@ -49,6 +55,7 @@ func NewConnection(server w2iface.IServer, conn *net.TCPConn, connId uint32, msg
 		ExitChan:    make(chan bool, 1),
 		msgChan:     make(chan []byte),
 		msgBuffChan: make(chan []byte, w2utils.GlobalObject.MaxMsgChanLen),
+		property:    make(map[string]interface{}),
 	}
 
 	// 将新创建的connection添加到链接管理中
@@ -168,7 +175,7 @@ func (c *Connection) Stop() {
 
 	// 执行用户注册的关闭连接回调方法
 	c.TcpServer.CallOnConnStop(c)
-	
+
 	// 关闭socket链接
 	if err := c.Conn.Close(); err != nil {
 		fmt.Println("Connection Stop() Close() error:", err)
@@ -237,4 +244,29 @@ func (c *Connection) SendBuffMsg(msgId uint32, data []byte) error {
 	c.msgBuffChan <- msg
 
 	return nil
+}
+
+func (c *Connection) SetProperty(key string, value interface{}) {
+	c.propertyLock.Lock()
+	defer c.propertyLock.Unlock()
+
+	c.property[key] = value
+}
+
+func (c *Connection) GetProperty(key string) (interface{}, error) {
+	c.propertyLock.RLock()
+	defer c.propertyLock.RUnlock()
+
+	if value, ok := c.property[key]; ok {
+		return value, nil
+	} else {
+		return nil, errors.New("property not exist")
+	}
+}
+
+func (c *Connection) RemoveProperty(key string) {
+	c.propertyLock.Lock()
+	defer c.propertyLock.Unlock()
+
+	delete(c.property, key)
 }
