@@ -3,6 +3,7 @@ package w2net
 import (
 	"errors"
 	"fmt"
+	"github.com/lnnlmario/w2-inx/w2utils"
 	"io"
 	"net"
 
@@ -81,8 +82,15 @@ func (c *Connection) StartReader() {
 
 		// 得到当前客户端请求的Request数据
 		request := Request{conn: c, msg: msg}
-		// 从绑定好的消息和对应的处理方法中执行对应的handle方法
-		go c.MsgHandler.DoMsgHandler(&request)
+
+		// 判断用户配置的workerPoolSize个数，若<=0，走之前启动一个客户端处理请求消息
+		if w2utils.GlobalObject.WorkerPoolSize > 0 {
+			// 已经启动工作池机制，将消息交给worker处理
+			c.MsgHandler.SendMsgToTaskQueue(&request)
+		} else {
+			// 从绑定好的消息和对应的处理方法中执行对应的handle方法
+			go c.MsgHandler.DoMsgHandler(&request)
+		}
 	}
 }
 
